@@ -1,23 +1,18 @@
 using System;
-using System.Threading;
 using System.Threading.Tasks;
 
-namespace SingletonLogger
+namespace SingletonLoggerAdvanced
 {
     class Program
     {
         static void Main(string[] args)
         {
             Logger logger = Logger.GetInstance();
+            logger.LoadConfig("loggerconfig.json");
 
-            // Меняем уровень логирования
-            logger.SetLogLevel(LogLevel.INFO);
+            Console.WriteLine("=== Многопоточное логирование ===");
 
-            // Меняем путь к файлу (необязательно)
-            logger.SetLogFilePath("app_log.txt");
-
-            // Многопоточное тестирование
-            Parallel.For(0, 5, i =>
+            Parallel.For(0, 10, i =>
             {
                 var log = Logger.GetInstance();
                 log.Log($"Сообщение от потока {i}", LogLevel.INFO);
@@ -29,8 +24,9 @@ namespace SingletonLogger
                     log.Log($"Ошибка в потоке {i}", LogLevel.ERROR);
             });
 
-            Console.WriteLine("=== Логи из файла ===");
-            logger.ReadLogs();
+            Console.WriteLine("=== Чтение логов (только ошибки) ===");
+            LogReader reader = new LogReader("logs/app_log.txt");
+            reader.PrintLogs(LogLevel.ERROR);
 
             Console.WriteLine("Нажмите любую клавишу для выхода...");
             Console.ReadKey();

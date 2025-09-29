@@ -1,15 +1,15 @@
 using System;
 using System.IO;
+using System.Text.Json;
 using System.Threading;
 
-namespace SingletonLogger
+namespace SingletonLoggerAdvanced
 {
-    // Уровни логирования
     public enum LogLevel
     {
-        INFO,
-        WARNING,
-        ERROR
+        INFO = 0,
+        WARNING = 1,
+        ERROR = 2
     }
 
     public sealed class Logger
@@ -17,41 +17,50 @@ namespace SingletonLogger
         private static Logger _instance = null;
         private static readonly object _lock = new object();
 
-        private string _logFilePath = "log.txt"; // путь к файлу по умолчанию
+        private string _logFilePath = "logs/app_log.txt";
         private LogLevel _currentLogLevel = LogLevel.INFO;
+        private bool _logToConsole = true;
+        private bool _enableRotation = false;
+        private long _maxFileSizeBytes = 1048576; // 1 MB
 
-        // Приватный конструктор (нельзя создать извне)
-        private Logger() { }
+        private Logger()
+        {
+            Directory.CreateDirectory("logs");
+        }
 
-        // Метод для получения единственного экземпляра
         public static Logger GetInstance()
         {
             if (_instance == null)
             {
-                lock (_lock) // блокировка для потокобезопасности
+                lock (_lock)
                 {
                     if (_instance == null)
-                    {
                         _instance = new Logger();
-                    }
                 }
             }
             return _instance;
         }
 
-        // Метод изменения уровня логирования
-        public void SetLogLevel(LogLevel level)
+        public void LoadConfig(string path)
         {
-            _currentLogLevel = level;
+            if (File.Exists(path))
+            {
+                string json = File.ReadAllText(path);
+                var config = JsonSerializer.Deserialize<LoggerConfig>(json);
+                if (config != null)
+                {
+                    _logFilePath = config.LogFilePath ?? _logFilePath;
+                    _logToConsole = config.LogToConsole;
+                    _enableRotation = config.EnableRotation;
+                    _maxFileSizeBytes = config.MaxFileSizeBytes;
+                    _currentLogLevel = Enum.TryParse(config.Level, out LogLevel lvl) ? lvl : LogLevel.INFO;
+                }
+            }
         }
 
-        // Метод изменения пути к файлу логов
-        public void SetLogFilePath(string path)
-        {
-            _logFilePath = path;
-        }
+        public void SetLogLevel(LogLevel level) => _currentLogLevel = level;
+        public void SetLogFilePath(string path) => _logFilePath = path;
 
-        // Метод записи логов
         public void Log(string message, LogLevel level)
         {
             if (level < _currentLogLevel)
@@ -59,26 +68,32 @@ namespace SingletonLogger
 
             string logMessage = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} [{level}] {message}";
 
-            lock (_lock) // блокировка на запись в файл
+            lock (_lock)
             {
+                if (_enableRotation && File.Exists(_logFilePath))
+                {
+                    var info = new FileInfo(_logFilePath);
+                    if (info.Length > _maxFileSizeBytes)
+                    {
+                        string rotated = _logFilePath.Replace(".txt", $"_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
+                        File.Move(_logFilePath, rotated);
+                    }
+                }
+
                 File.AppendAllText(_logFilePath, logMessage + Environment.NewLine);
-            }
 
-            Console.WriteLine(logMessage); // выводим ещё и в консоль
-        }
-
-        // Чтение логов
-        public void ReadLogs()
-        {
-            if (File.Exists(_logFilePath))
-            {
-                Console.WriteLine("=== Содержимое логов ===");
-                Console.WriteLine(File.ReadAllText(_logFilePath));
-            }
-            else
-            {
-                Console.WriteLine("Файл логов отсутствует.");
+                if (_logToConsole)
+                    Console.WriteLine(logMessage);
             }
         }
+    }
+
+    public class LoggerConfig
+    {
+        public string LogFilePath { get; set; }
+        public string Level { get; set; }
+        public long MaxFileSizeBytes { get; set; }
+        public bool LogToConsole { get; set; }
+        public bool EnableRotation { get; set; }
     }
 }

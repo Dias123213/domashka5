@@ -1,0 +1,7 @@
+{
+  "LogFilePath": "logs/app_log.txt",
+  "Level": "INFO",
+  "MaxFileSizeBytes": 1048576,
+  "LogToConsole": true,
+  "EnableRotation": true
+}
